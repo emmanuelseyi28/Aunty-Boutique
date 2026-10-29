@@ -48,6 +48,19 @@ After running the SQL:
 
 Passwords are stored and checked by Supabase Auth. Customer contact and address details are stored in `profiles`, where each signed-in customer can access only their own profile. Profile photos are saved in a private Storage bucket and can only be read by the member who uploaded them.
 
+## Admin product management
+
+The store owner can add and edit products, prices, quantities, categories, photos, and members-only status from `/admin`. They can also mark a product unavailable without deleting it. Home-page sample items can be added to the admin list as unavailable drafts, then reviewed and edited before being made available to customers.
+
+To set this up for the store owner:
+
+1. In Supabase, open **SQL Editor → New query**. Open [`supabase/migrations/20261027010000_store_admin_dashboard.sql`](./supabase/migrations/20261027010000_store_admin_dashboard.sql), copy all its contents into the query, and click **Run** once. This creates the admin access rules and product photo bucket.
+2. The store owner needs a normal Phunvict Fashion account first. She can use **Become a member** on the site, or use an account she already has. No password needs to be shared.
+3. Open [`supabase/grant_store_admin.sql`](./supabase/grant_store_admin.sql), replace `admin@example.com` with the email address she used for her account, paste the SQL into a new Supabase query, and click **Run**. This approves only that account as an administrator.
+4. Open `http://localhost:3000/admin` while the website is running and sign in with her own email and password. On the live website, use the same address with `/admin` at the end of the domain.
+
+The admin page uses the regular Supabase publishable key in the browser. Never put a Supabase secret or service-role key in the website.
+
 To learn more about Next.js, take a look at the following resources:
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.

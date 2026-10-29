@@ -4,6 +4,7 @@ import { type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "r
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { getProductImage } from "@/lib/product-images";
 import { normalizeProductCategory } from "@/lib/product-categories";
+import { homePageSampleProducts } from "@/lib/sample-products";
 
 type Product = {
   id: string;
@@ -16,62 +17,7 @@ type Product = {
   isExclusive?: boolean;
 };
 
-const products: Product[] = [
-  {
-    id: "demo-1",
-    name: "Unisex Wear",
-    category: "Adult Office Wear",
-    price: 100000,
-    stock: 12,
-    color: "Navy",
-    image: "/products/mens-boxer-shorts.jpeg",
-  },
-  {
-    id: "demo-2",
-    name: "Women's Everyday Briefs",
-    category: "Adult Office Wear",
-    price: 6500,
-    stock: 10,
-    color: "Black",
-    image: "/products/womens-everyday-briefs.jpeg",
-  },
-  {
-    id: "demo-3",
-    name: "Unisex Comfort Outing Wear",
-    category: "Adult Outing Wear",
-    price: 12000,
-    stock: 8,
-    color: "Nude",
-    image: "/products/womens-comfort-bra.jpeg",
-  },
-  {
-    id: "demo-4",
-    name: "Women's Office Dress",
-    category: "Adult Office Wear",
-    price: 25000,
-    stock: 5,
-    color: "Wine",
-    image: "/products/womens-office-dress.jpg",
-  },
-  {
-    id: "demo-5",
-    name: "Men's Office Shirt and Trousers",
-    category: "Adult Office Wear",
-    price: 28000,
-    stock: 6,
-    color: "Navy",
-    image: "",
-  },
-  {
-    id: "demo-6",
-    name: "Kids' Two-Piece Set",
-    category: "Kids' Ready-to-Wear",
-    price: 18000,
-    stock: 5,
-    color: "Multicolor",
-    image: "/products/kids-two-piece-set.jpeg",
-  },
-];
+const products: Product[] = homePageSampleProducts;
 
 const money = (amount: number) =>
   new Intl.NumberFormat("en-NG", {
@@ -209,11 +155,15 @@ export default function Home() {
 
     let active = true;
     async function loadProducts() {
-      const { data, error } = await supabase!
+      let productQuery = supabase!
         .from("products")
         .select("name, category, price_ngn, stock_quantity, image_url, is_active, is_exclusive")
-        .eq("is_active", true)
-        .order("name");
+        .eq("is_active", true);
+
+      // A visitor without a signed-in member session should never request
+      // members-only catalog rows, even if a Supabase policy is misconfigured.
+      if (!sessionEmail) productQuery = productQuery.eq("is_exclusive", false);
+      const { data, error } = await productQuery.order("name");
 
       if (!active) return;
       if (error) {
@@ -228,8 +178,7 @@ export default function Home() {
         return;
       }
 
-      setCatalog(
-        (data ?? []).map((product) => ({
+      const savedProducts: Product[] = (data ?? []).map((product) => ({
           id: `${product.name}:${product.category}:${product.image_url}`,
           name: product.name,
           category: normalizeProductCategory(product.category),
@@ -238,8 +187,17 @@ export default function Home() {
           color: "Multicolor",
           image: getProductImage(product.name, product.image_url),
           isExclusive: Boolean(product.is_exclusive),
-        }))
+        }));
+
+      // Keep the home-page examples in place while the store owner gradually
+      // adds the real catalog. A saved product replaces its matching example;
+      // other examples remain visible instead of disappearing when the first
+      // Supabase product is activated.
+      const savedNames = new Set(savedProducts.map((product) => product.name.trim().toLocaleLowerCase()));
+      const remainingSamples = products.filter(
+        (product) => !savedNames.has(product.name.trim().toLocaleLowerCase())
       );
+      setCatalog([...savedProducts, ...remainingSamples]);
       setCatalogStatus("connected");
     }
 
@@ -501,18 +459,11 @@ export default function Home() {
         </div>
 
         <div className="rounded-3xl bg-[#f1e0d2] p-4">
-          {catalog[0]?.image ? (
-            <img
-              src={catalog[0].image}
-              alt="A look from our collection"
-              className="h-72 w-full rounded-2xl object-cover md:h-96"
-            />
-          ) : (
-            <div className="flex h-72 items-center justify-center rounded-2xl bg-[#e8d1c1] px-8 text-center text-2xl font-semibold text-[#552d27] md:h-96">
-              Phunvict Fashion
-              <span className="mt-2 block text-base font-normal">Ready-to-wear and corporate looks for kids and adults</span>
-            </div>
-          )}
+          <img
+            src="/products/hero-black-office-set.jpeg"
+            alt="Black office outfit from Phunvict Fashion"
+            className="h-72 w-full rounded-2xl object-cover md:h-96"
+          />
           <p className="px-2 pb-1 pt-4 text-center text-sm text-stone-600">
             We sew &amp; sell ready-to-wear.
           </p>
@@ -616,6 +567,26 @@ export default function Home() {
         {catalog.some((product) => product.isExclusive) && (
           <div className="mb-5 rounded-2xl border border-[#d8b58c] bg-[#fff4df] p-4 text-sm text-[#552d27]">
             <span className="font-semibold">Member collection unlocked.</span> These special styles are available to signed-in members.
+          </div>
+        )}
+        {!sessionEmail && (
+          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-[#d8b58c] bg-[#fff4df] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-[#552d27]">🔒 Members-only styles are locked</p>
+              <p className="mt-1 text-sm leading-5 text-[#75453b]">Create a member account or sign in to unlock exclusive products.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMemberMode("signup");
+                setMemberMessage("");
+                setMembershipNotice("Create a member account or sign in to unlock exclusive products.");
+                setMemberDialog(true);
+              }}
+              className="shrink-0 rounded-full bg-[#552d27] px-5 py-2.5 text-sm font-semibold text-white"
+            >
+              Become a member / Sign in
+            </button>
           </div>
         )}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
